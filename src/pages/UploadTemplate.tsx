@@ -84,11 +84,31 @@ const UploadTemplate = () => {
       return;
     }
     
-    // In a real app, this would save to backend
-    localStorage.setItem('template', JSON.stringify({ image: templateImage, regions }));
+    // Simulate OCR extraction of correct answers from template
+    const answerKey: Record<string, string> = {};
+    const mockTemplateAnswers = [
+      'Delhi', 
+      'Mahatma Gandhi', 
+      'Photosynthesis',
+      'Mitochondria',
+      'India',
+    ];
+    
+    regions.forEach((region) => {
+      // In real app, this would run OCR on the region
+      answerKey[`Q${region.questionNumber}`] = mockTemplateAnswers[region.questionNumber - 1] || 'Sample Answer';
+    });
+    
+    // Save template, regions, and extracted answer key
+    localStorage.setItem('template', JSON.stringify({ 
+      image: templateImage, 
+      regions 
+    }));
+    localStorage.setItem('answerKey', JSON.stringify(answerKey));
+    
     toast({
-      title: "Template Saved",
-      description: `Successfully saved template with ${regions.length} answer regions.`,
+      title: "Template & Answer Key Saved",
+      description: `Extracted ${regions.length} answers automatically using OCR.`,
     });
   };
 

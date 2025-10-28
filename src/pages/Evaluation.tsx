@@ -1,13 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Navigation from "@/components/Navigation";
-import { Play, CheckCircle, XCircle } from "lucide-react";
+import { Play, CheckCircle, XCircle, FileCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 
 interface Answer {
   studentId: string;
@@ -19,21 +18,34 @@ interface Answer {
 }
 
 const Evaluation = () => {
-  const [answerKey, setAnswerKey] = useState<Record<number, string>>({});
+  const [answerKey, setAnswerKey] = useState<Record<string, string>>({});
   const [evaluationResults, setEvaluationResults] = useState<Answer[]>([]);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const handleAnswerKeyChange = (questionNo: number, answer: string) => {
-    setAnswerKey({ ...answerKey, [questionNo]: answer });
-  };
+  useEffect(() => {
+    // Load answer key automatically from template
+    const storedAnswerKey = localStorage.getItem('answerKey');
+    if (storedAnswerKey) {
+      const parsedKey = JSON.parse(storedAnswerKey);
+      setAnswerKey(parsedKey);
+      setIsLoaded(true);
+    } else {
+      toast({
+        title: "No Answer Key Found",
+        description: "Please upload and save a question paper template first.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
 
   const runEvaluation = () => {
     if (Object.keys(answerKey).length === 0) {
       toast({
         title: "No Answer Key",
-        description: "Please provide answers for at least one question.",
+        description: "Please upload a question paper template first.",
         variant: "destructive",
       });
       return;
@@ -52,22 +64,25 @@ const Evaluation = () => {
       ];
 
       students.forEach((studentId, studentIndex) => {
-        Object.keys(answerKey).forEach((qNo) => {
-          const questionNo = parseInt(qNo);
-          const correctAnswer = answerKey[questionNo].toLowerCase().trim();
+        Object.keys(answerKey).forEach((qKey) => {
+          const questionNo = parseInt(qKey.replace('Q', ''));
+          const correctAnswer = answerKey[qKey].toLowerCase().trim();
           const extractedAnswer = mockExtractedAnswers[studentIndex][questionNo - 1] || '';
           
-          // Simple fuzzy matching simulation
-          const similarity = extractedAnswer.toLowerCase().includes(correctAnswer) || 
-                           correctAnswer.includes(extractedAnswer.toLowerCase()) ? 90 : 40;
+          // Fuzzy matching simulation (normalize and compare)
+          const normalizedExtracted = extractedAnswer.toLowerCase().replace(/[^\w]/g, '');
+          const normalizedCorrect = correctAnswer.toLowerCase().replace(/[^\w]/g, '');
           
-          const isCorrect = similarity > 80;
+          const similarity = normalizedExtracted.includes(normalizedCorrect) || 
+                           normalizedCorrect.includes(normalizedExtracted) ? 90 : 40;
+          
+          const isCorrect = similarity >= 80;
           
           mockResults.push({
             studentId,
             questionNo,
             extractedAnswer,
-            correctAnswer: answerKey[questionNo],
+            correctAnswer: answerKey[qKey],
             score: isCorrect ? 1 : 0,
             isCorrect,
           });
@@ -107,34 +122,53 @@ const Evaluation = () => {
           <div className="grid gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Answer Key</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <FileCheck className="h-5 w-5" />
+                  Answer Key Status
+                </CardTitle>
                 <CardDescription>
-                  Enter the correct answers for each question
+                  Automatically extracted from Question Paper Template using OCR
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid md:grid-cols-3 gap-4">
-                  {[1, 2, 3].map((qNo) => (
-                    <div key={qNo}>
-                      <Label htmlFor={`q${qNo}`}>Question {qNo}</Label>
-                      <Input
-                        id={`q${qNo}`}
-                        placeholder="Enter correct answer"
-                        value={answerKey[qNo] || ''}
-                        onChange={(e) => handleAnswerKeyChange(qNo, e.target.value)}
-                      />
+                {isLoaded ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="default" className="bg-green-500">
+                        ✓ Answer Key Loaded
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        {Object.keys(answerKey).length} questions detected
+                      </span>
                     </div>
-                  ))}
-                </div>
+                    
+                    <div className="rounded-lg border bg-muted/50 p-4">
+                      <h4 className="text-sm font-medium mb-3">Extracted Answers:</h4>
+                      <div className="grid gap-2">
+                        {Object.entries(answerKey).map(([qKey, answer]) => (
+                          <div key={qKey} className="flex justify-between text-sm">
+                            <span className="font-medium">{qKey}:</span>
+                            <span className="text-muted-foreground">{answer}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <FileCheck className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No answer key found. Please upload a template first.</p>
+                  </div>
+                )}
                 
                 <Button 
                   onClick={runEvaluation} 
-                  disabled={isEvaluating}
+                  disabled={isEvaluating || !isLoaded}
                   className="w-full mt-6"
                   size="lg"
                 >
                   <Play className="mr-2 h-5 w-5" />
-                  {isEvaluating ? "Evaluating..." : "Run Evaluation"}
+                  {isEvaluating ? "Evaluating All Answer Sheets..." : "Evaluate All Answer Sheets"}
                 </Button>
               </CardContent>
             </Card>
