@@ -1,27 +1,22 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Navigation from "@/components/Navigation";
-import { Upload, Square, Save, Trash2 } from "lucide-react";
+import { Upload, Save, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-interface AnswerRegion {
+interface Question {
   id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  questionNumber: number;
+  text: string;
+  expected_answer: string;
 }
 
 const UploadTemplate = () => {
   const [templateImage, setTemplateImage] = useState<string | null>(null);
-  const [regions, setRegions] = useState<AnswerRegion[]>([]);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
-  const canvasRef = useRef<HTMLDivElement>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,85 +25,59 @@ const UploadTemplate = () => {
       const reader = new FileReader();
       reader.onload = (event) => {
         setTemplateImage(event.target?.result as string);
-        setRegions([]);
+        setIsProcessing(true);
+        
+        // Simulate automatic OCR + layout detection
+        setTimeout(() => {
+          const detectedQuestions: Question[] = [
+            { id: "Q1", text: "What is the capital of India?", expected_answer: "Delhi" },
+            { id: "Q2", text: "Who is known as the Father of the Nation?", expected_answer: "Mahatma Gandhi" },
+            { id: "Q3", text: "What is the process by which plants make food?", expected_answer: "Photosynthesis" },
+            { id: "Q4", text: "What is the powerhouse of the cell?", expected_answer: "Mitochondria" },
+            { id: "Q5", text: "In which country is the Taj Mahal located?", expected_answer: "India" },
+          ];
+          
+          setQuestions(detectedQuestions);
+          setIsProcessing(false);
+          
+          toast({
+            title: "Questions Detected",
+            description: `Automatically detected ${detectedQuestions.length} questions using OCR.`,
+          });
+        }, 2000);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!templateImage) return;
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (rect) {
-      setIsDrawing(true);
-      setStartPoint({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      });
-    }
-  };
-
-  const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDrawing || !startPoint) return;
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (rect) {
-      const endX = e.clientX - rect.left;
-      const endY = e.clientY - rect.top;
-      
-      const newRegion: AnswerRegion = {
-        id: Date.now().toString(),
-        x: Math.min(startPoint.x, endX),
-        y: Math.min(startPoint.y, endY),
-        width: Math.abs(endX - startPoint.x),
-        height: Math.abs(endY - startPoint.y),
-        questionNumber: regions.length + 1,
-      };
-      
-      setRegions([...regions, newRegion]);
-    }
-    setIsDrawing(false);
-    setStartPoint(null);
-  };
-
-  const deleteRegion = (id: string) => {
-    setRegions(regions.filter(r => r.id !== id));
-  };
-
   const saveTemplate = () => {
-    if (!templateImage || regions.length === 0) {
+    if (!templateImage || questions.length === 0) {
       toast({
         title: "Cannot Save",
-        description: "Please upload a template and mark at least one answer region.",
+        description: "Please upload a question paper to detect questions.",
         variant: "destructive",
       });
       return;
     }
     
-    // Simulate OCR extraction of correct answers from template
-    const answerKey: Record<string, string> = {};
-    const mockTemplateAnswers = [
-      'Delhi', 
-      'Mahatma Gandhi', 
-      'Photosynthesis',
-      'Mitochondria',
-      'India',
-    ];
-    
-    regions.forEach((region) => {
-      // In real app, this would run OCR on the region
-      answerKey[`Q${region.questionNumber}`] = mockTemplateAnswers[region.questionNumber - 1] || 'Sample Answer';
+    // Save question structure with detected text and expected answers
+    const questionStructure: Record<string, { text: string; expected_answer: string }> = {};
+    questions.forEach((q) => {
+      questionStructure[q.id] = {
+        text: q.text,
+        expected_answer: q.expected_answer,
+      };
     });
     
-    // Save template, regions, and extracted answer key
+    // Save template and question structure
     localStorage.setItem('template', JSON.stringify({ 
       image: templateImage, 
-      regions 
+      questions: questionStructure 
     }));
-    localStorage.setItem('answerKey', JSON.stringify(answerKey));
     
     toast({
-      title: "Template & Answer Key Saved",
-      description: `Extracted ${regions.length} answers automatically using OCR.`,
+      title: "Question Paper Saved",
+      description: `Detected and saved ${questions.length} questions with expected answers.`,
     });
   };
 
@@ -119,18 +88,18 @@ const UploadTemplate = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-4xl font-bold mb-2 bg-gradient-primary bg-clip-text text-transparent">
-            Upload Question Paper Template
+            Upload Question Paper
           </h1>
           <p className="text-muted-foreground mb-8">
-            Upload your question paper template and mark the regions where students will write their answers.
+            Upload your question paper and we'll automatically detect all questions and answer regions using OCR.
           </p>
 
           <div className="grid md:grid-cols-3 gap-6">
             <Card className="md:col-span-2">
               <CardHeader>
-                <CardTitle>Template Image</CardTitle>
+                <CardTitle>Question Paper</CardTitle>
                 <CardDescription>
-                  {templateImage ? "Click and drag to mark answer regions" : "Upload a question paper template"}
+                  {templateImage ? (isProcessing ? "Processing with OCR..." : `Detected ${questions.length} questions`) : "Upload a question paper"}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -149,29 +118,16 @@ const UploadTemplate = () => {
                     </Label>
                   </div>
                 ) : (
-                  <div 
-                    ref={canvasRef}
-                    className="relative cursor-crosshair border-2 border-border rounded-lg overflow-hidden"
-                    onMouseDown={handleMouseDown}
-                    onMouseUp={handleMouseUp}
-                  >
-                    <img src={templateImage} alt="Template" className="w-full" />
-                    {regions.map((region) => (
-                      <div
-                        key={region.id}
-                        className="absolute border-2 border-primary bg-primary/20"
-                        style={{
-                          left: region.x,
-                          top: region.y,
-                          width: region.width,
-                          height: region.height,
-                        }}
-                      >
-                        <span className="absolute -top-6 left-0 bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-medium">
-                          Q{region.questionNumber}
-                        </span>
+                  <div className="relative border-2 border-border rounded-lg overflow-hidden">
+                    <img src={templateImage} alt="Question Paper" className="w-full" />
+                    {isProcessing && (
+                      <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                          <p className="text-sm text-muted-foreground">Detecting questions...</p>
+                        </div>
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -181,28 +137,28 @@ const UploadTemplate = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Square className="h-5 w-5" />
-                    Answer Regions
+                    <FileText className="h-5 w-5" />
+                    Detected Questions
                   </CardTitle>
                   <CardDescription>
-                    Marked: {regions.length} regions
+                    {questions.length} questions detected
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {regions.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No regions marked yet</p>
+                  {questions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No questions detected yet</p>
                   ) : (
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {regions.map((region) => (
-                        <div key={region.id} className="flex items-center justify-between p-2 bg-muted rounded">
-                          <span className="text-sm font-medium">Question {region.questionNumber}</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => deleteRegion(region.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {questions.map((question) => (
+                        <div key={question.id} className="p-3 bg-muted rounded-lg">
+                          <div className="flex items-start justify-between mb-2">
+                            <span className="text-sm font-bold text-primary">{question.id}</span>
+                          </div>
+                          <p className="text-sm mb-2">{question.text}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="font-medium">Expected:</span>
+                            <span className="bg-background px-2 py-1 rounded">{question.expected_answer}</span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -212,19 +168,19 @@ const UploadTemplate = () => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Instructions</CardTitle>
+                  <CardTitle>How it works</CardTitle>
                 </CardHeader>
                 <CardContent className="text-sm text-muted-foreground space-y-2">
-                  <p>1. Upload your question paper template</p>
-                  <p>2. Click and drag to draw rectangles around answer areas</p>
-                  <p>3. Each rectangle will be numbered automatically</p>
-                  <p>4. Save the template to proceed</p>
+                  <p>1. Upload your question paper image</p>
+                  <p>2. OCR automatically detects questions and answer regions</p>
+                  <p>3. Expected answers are generated using AI</p>
+                  <p>4. Save and proceed to upload answer sheets</p>
                 </CardContent>
               </Card>
 
-              <Button onClick={saveTemplate} className="w-full" size="lg">
+              <Button onClick={saveTemplate} className="w-full" size="lg" disabled={questions.length === 0 || isProcessing}>
                 <Save className="mr-2 h-5 w-5" />
-                Save Template
+                Save Question Paper
               </Button>
             </div>
           </div>

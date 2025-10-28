@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import Navigation from "@/components/Navigation";
-import { Play, CheckCircle, XCircle, FileCheck } from "lucide-react";
+import { Play, CheckCircle, XCircle, FileCheck, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -22,24 +24,57 @@ const Evaluation = () => {
   const [evaluationResults, setEvaluationResults] = useState<Answer[]>([]);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isProcessingAnswerKey, setIsProcessingAnswerKey] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Load answer key automatically from template
-    const storedAnswerKey = localStorage.getItem('answerKey');
-    if (storedAnswerKey) {
-      const parsedKey = JSON.parse(storedAnswerKey);
-      setAnswerKey(parsedKey);
-      setIsLoaded(true);
+    // Load questions from template
+    const storedTemplate = localStorage.getItem('template');
+    if (storedTemplate) {
+      const template = JSON.parse(storedTemplate);
+      if (template.questions) {
+        const key: Record<string, string> = {};
+        Object.entries(template.questions).forEach(([qId, qData]: [string, any]) => {
+          key[qId] = qData.expected_answer;
+        });
+        setAnswerKey(key);
+        setIsLoaded(true);
+      }
     } else {
       toast({
-        title: "No Answer Key Found",
-        description: "Please upload and save a question paper template first.",
+        title: "No Question Paper Found",
+        description: "Please upload and save a question paper first.",
         variant: "destructive",
       });
     }
   }, [toast]);
+
+  const handleAnswerKeyUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setIsProcessingAnswerKey(true);
+      
+      // Simulate OCR processing of answer key file
+      setTimeout(() => {
+        const updatedKey: Record<string, string> = {
+          Q1: "New Delhi",
+          Q2: "Mahatma Gandhi",
+          Q3: "Photosynthesis",
+          Q4: "Mitochondria",
+          Q5: "India",
+        };
+        
+        setAnswerKey(updatedKey);
+        setIsProcessingAnswerKey(false);
+        
+        toast({
+          title: "Answer Key Updated",
+          description: "Answer key has been extracted from the uploaded file.",
+        });
+      }, 2000);
+    }
+  };
 
   const runEvaluation = () => {
     if (Object.keys(answerKey).length === 0) {
@@ -113,10 +148,10 @@ const Evaluation = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-4xl font-bold mb-2 bg-gradient-primary bg-clip-text text-transparent">
-            Answer Extraction & Evaluation
+            Auto Evaluation
           </h1>
           <p className="text-muted-foreground mb-8">
-            Provide the correct answers and run automatic evaluation using OCR and fuzzy matching.
+            Upload an answer key (optional) or use AI-generated answers, then run automatic evaluation.
           </p>
 
           <div className="grid gap-6">
@@ -124,10 +159,10 @@ const Evaluation = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileCheck className="h-5 w-5" />
-                  Answer Key Status
+                  Answer Key
                 </CardTitle>
                 <CardDescription>
-                  Automatically extracted from Question Paper Template using OCR
+                  AI-generated answers from question paper (optional: upload custom answer key)
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -135,15 +170,15 @@ const Evaluation = () => {
                   <div className="space-y-4">
                     <div className="flex items-center gap-2">
                       <Badge variant="default" className="bg-green-500">
-                        ✓ Answer Key Loaded
+                        ✓ Answer Key Ready
                       </Badge>
                       <span className="text-sm text-muted-foreground">
-                        {Object.keys(answerKey).length} questions detected
+                        {Object.keys(answerKey).length} questions
                       </span>
                     </div>
                     
                     <div className="rounded-lg border bg-muted/50 p-4">
-                      <h4 className="text-sm font-medium mb-3">Extracted Answers:</h4>
+                      <h4 className="text-sm font-medium mb-3">Current Answers:</h4>
                       <div className="grid gap-2">
                         {Object.entries(answerKey).map(([qKey, answer]) => (
                           <div key={qKey} className="flex justify-between text-sm">
@@ -153,22 +188,45 @@ const Evaluation = () => {
                         ))}
                       </div>
                     </div>
+
+                    <div className="border-t pt-4">
+                      <Label htmlFor="answer-key-upload" className="text-sm font-medium mb-2 block">
+                        Upload Custom Answer Key (Optional)
+                      </Label>
+                      <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                        <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                        <Label htmlFor="answer-key-upload" className="cursor-pointer">
+                          <span className="text-sm text-primary font-medium">Upload PDF or Text file</span>
+                          <Input
+                            id="answer-key-upload"
+                            type="file"
+                            accept=".pdf,.txt"
+                            className="hidden"
+                            onChange={handleAnswerKeyUpload}
+                            disabled={isProcessingAnswerKey}
+                          />
+                        </Label>
+                        {isProcessingAnswerKey && (
+                          <p className="text-xs text-muted-foreground mt-2">Processing answer key...</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-6 text-muted-foreground">
                     <FileCheck className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>No answer key found. Please upload a template first.</p>
+                    <p>No question paper found. Please upload one first.</p>
                   </div>
                 )}
                 
                 <Button 
                   onClick={runEvaluation} 
-                  disabled={isEvaluating || !isLoaded}
+                  disabled={isEvaluating || !isLoaded || isProcessingAnswerKey}
                   className="w-full mt-6"
                   size="lg"
                 >
                   <Play className="mr-2 h-5 w-5" />
-                  {isEvaluating ? "Evaluating All Answer Sheets..." : "Evaluate All Answer Sheets"}
+                  {isEvaluating ? "Running Auto Evaluation..." : "Run Auto Evaluation"}
                 </Button>
               </CardContent>
             </Card>
